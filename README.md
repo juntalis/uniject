@@ -15,7 +15,7 @@ Usage information specific to the library or command line tool found further dow
 The following parameters require a value:
 
 * `pid` - The targeted process ID.
-* `assembly_name` - The assembly you'd like to load. (not required, but highly recommended that you use the absolute filepath)
+* `assembly_path` - The assembly you'd like to load. (not required, but highly recommended that you use the absolute filepath)
 
 You can use whatever assembly/class/method name you'd like, but the signature of the entrypoint method for your assembly
 is expected to match:

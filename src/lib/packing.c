@@ -3,10 +3,15 @@
  * @author Charles Grunwald <ch@rles.rocks>
  */
 #include "pch.h"
-#include <uniject/data.h>
-#include <uniject/error.h>
+#include <uniject/packing.h>
 #include <uniject/utility.h>
-#include <uniject/ipc.h>
+
+/**
+ * @internal
+ * Internally used helpers
+ */
+
+#define TOPTR(X) ((size_t)(X))
 
 #define PACKER_MODE_RESERVE 0
 #define PACKER_MODE_PACK    1
@@ -27,24 +32,8 @@ struct unij_unpacker
 	const void* buffer;
 };
 
-/**
- * @internal
- * Internally used helpers
- */
-
-#define ENSURE_PACKER(P) \
-	( unij_ensure_context(P, L"packer", __FUNCTIONW__) )
-
-#define ENSURE_UNPACKER(U) \
-	( unij_ensure_context(U, L"unpacker", __FUNCTIONW__) )
-
-#define ENSURE_PACK_MODE(P) \
-	( unij_packer_ensure_mode(P, PACKER_MODE_PACK, __FUNCTIONW__) )
-
-#define ENSURE_RESERVE_MODE(P) \
-	( unij_packer_ensure_mode(P, PACKER_MODE_RESERVE, __FUNCTIONW__) )
-
-#define TOSZ(X) ((size_t)(X))
+static const wchar_t SELF_UNPACKER[] = L"unpacker";
+static const wchar_t* SELF_PACKER = &(SELF_UNPACKER[2]);
 
 static const wchar_t WHEN_BEFORE[] = L"before";
 static const wchar_t WHEN_AFTER[]  = L"after";
@@ -52,36 +41,39 @@ static const wchar_t WHEN_AFTER[]  = L"after";
 static const wchar_t BOUNDS_UPPER[] = L"upper";
 static const wchar_t BOUNDS_LOWER[] = L"lower";
 
-static bool unij_ensure_context(void* ctx, const wchar_t* which, const wchar_t* funcName)
+#define ENSURE_PACKER(P) \
+	( packing_ensure((void*)(P), SELF_PACKER, __FUNCTIONW__) )
+
+#define ENSURE_UNPACKER(U) \
+	( packing_ensure((void*)(U), SELF_UNPACKER, __FUNCTIONW__) )
+
+#define ENSURE_PACK_MODE(P) \
+	( packer_ensure_mode(P, PACKER_MODE_PACK, __FUNCTIONW__) )
+
+#define ENSURE_RESERVE_MODE(P) \
+	( packer_ensure_mode(P, PACKER_MODE_RESERVE, __FUNCTIONW__) )
+
+static UNIJ_INLINE bool packing_ensure(void* self, const wchar_t* param, const wchar_t* caller)
 {
-	bool status = true;
-	if(ctx == NULL) {
-		status = false;
-		unij_fatal_error(
-			UNIJ_ERROR_ADDRESS,
-			L"Fatal call made to %s with NULL %s",
-			funcName, which
-		);
- 	}
- 	return status;
+ 	return !unij_fatal_null3(self, caller, param);
 }
 
-static bool unij_packer_ensure_mode(unij_packer_t* P, uint8_t mode, const wchar_t* funcName)
+static UNIJ_INLINE bool packer_ensure_mode(unij_packer_t* P, uint8_t mode, const wchar_t* caller)
 {
-	bool status = true;
-	if(P->mode != mode) {
+	bool result = packing_ensure((void*)P, SELF_PACKER, caller);
+	if(result && P->mode != mode) {
 		const wchar_t* when = mode == PACKER_MODE_RESERVE ? WHEN_BEFORE : WHEN_AFTER;
-		status = false;
+		result = false;
 		unij_fatal_error(
 			UNIJ_ERROR_OPERATION,
 			L"Calls to %s can only be made %s the operation mode is changed with a call to unij_packer_commit!",
-			funcName, when
+			caller, when
 		);
 	}
-	return status;
+	return result;
 }
 
-static void unij_packer_reset_internal(unij_packer_t* P)
+static void packer_clear(unij_packer_t* P)
 {
 	// If the packer has already transitioned to packing mode, wee need to do some additional cleanup.
 	if(P->mode == PACKER_MODE_PACK && P->buffer != NULL) {
@@ -100,28 +92,28 @@ static void unij_packer_reset_internal(unij_packer_t* P)
  * @param P packer
  * @param memprocs Memory routines 
  */
-static UNIJ_INLINE void unij_packer_initial(unij_packer_t* P, unij_memprocs_t* memprocs)
+static UNIJ_INLINE void packer_initialize(unij_packer_t* P, unij_memprocs_t* memprocs)
 {
 	P->mem = memprocs;
 	P->size = sizeof(size_t);
 	P->mode = PACKER_MODE_RESERVE; // To make it more explicit
 }
 
-static UNIJ_INLINE size_t unij_packer_bytes_used(unij_packer_t* P)
+static UNIJ_INLINE size_t packer_used_bytes(unij_packer_t* P)
 {
-	return TOSZ(P->position) - TOSZ(P->buffer);
+	return TOPTR(P->position) - TOPTR(P->buffer);
 }
 
 static UNIJ_INLINE size_t unij_packer_bytes_remaining(unij_packer_t* P)
 {
-	size_t szUsed = unij_packer_bytes_used(P);
-	assert(szUsed <= P->size);
-	return P->size - szUsed;
+	size_t used = packer_used_bytes(P);
+	assert(used <= P->size);
+	return P->size - used;
 }
 
 static UNIJ_INLINE size_t unij_unpacker_bytes_used(unij_unpacker_t* U)
 {
-	return TOSZ(U->position) - TOSZ(U->buffer);
+	return TOPTR(U->position) - TOPTR(U->buffer);
 }
 
 static UNIJ_INLINE size_t unij_unpacker_bytes_remaining(unij_unpacker_t* U)
@@ -147,7 +139,7 @@ unij_packer_t* unij_packer_create(unij_memprocs_t* memprocs)
 	// Allocate
 	P = (unij_packer_t*)unij_alloc(sizeof(*P));
 	if(P != NULL) {
-		unij_packer_initial(P, memprocs);
+		packer_initialize(P, memprocs);
 	} else {
 		unij_fatal_alloc();
 	}
@@ -159,48 +151,54 @@ void unij_packer_reset(unij_packer_t* P)
 	// Only the memory routines are preserved. 
 	unij_memprocs_t* memprocs;
 	if(!ENSURE_PACKER(P)) return;
+	
 	memprocs = P->mem;
 	
 	// Use internal reset handler to zero everything out.
-	unij_packer_reset_internal(P);
+	packer_clear(P);
 	
 	// Then revert the fields to the initial state at the time of construction.
-	unij_packer_initial(P, memprocs);
+	packer_initialize(P, memprocs);
 }
 
 void unij_packer_destroy(unij_packer_t* P)
 {
 	if(P != NULL) {
-		unij_packer_reset_internal(P);
+		packer_clear(P);
 		unij_free((void*)P);
 	}
 }
 
-size_t unij_packer_size(unij_packer_t* P)
+size_t unij_packer_get_size(unij_packer_t* P)
 {
 	return ENSURE_PACKER(P) ? P->size : 0;
 }
 
+const void* unij_packer_get_buffer(unij_packer_t* P)
+{
+	return ENSURE_PACKER(P) ? P->buffer : NULL;
+}
+
 void unij_reserve(unij_packer_t* P, size_t size)
 {
-	if(ENSURE_PACKER(P) && ENSURE_RESERVE_MODE(P)) {
+	if(ENSURE_RESERVE_MODE(P)) {
 		P->size += size;
 	}
 }
 
-void unij_reserve_wstr(unij_packer_t* P, unij_wstr_t data)
+void unij_reserve_wstr(unij_packer_t* P, const unij_wstr_t* data)
 {
 	// Mode/NULL checks are done in unij_reserve call
-	size_t szBytes = sizeof(data.length) + (data.length * sizeof(wchar_t));
-	unij_reserve(P, szBytes);
+	size_t size = data == NULL ? sizeof(uint16_t) : sizeof(data->length) + WSIZE(data->length);
+	unij_reserve(P, size);
 }
 
 bool unij_packer_commit(unij_packer_t* P)
 {
-	bool status = true;
+	bool status;
 	void*  buffer = NULL;
 	unij_memprocs_t* memprocs;
-	if(!ENSURE_PACKER(P) || !ENSURE_RESERVE_MODE(P))
+	if(!ENSURE_RESERVE_MODE(P))
 		return false;
 	
 	// Create a local reference
@@ -214,7 +212,7 @@ bool unij_packer_commit(unij_packer_t* P)
 			P->size
 		);
 	} else {
-		RtlZeroMemory((void*)buffer, P->size);
+		RtlZeroMemory(buffer, P->size);
 		P->position = buffer;
 		P->buffer = (const void*)buffer;
 		P->mode = PACKER_MODE_PACK;
@@ -223,49 +221,42 @@ bool unij_packer_commit(unij_packer_t* P)
 	return status;
 }
 
-const void* unij_packer_buffer(unij_packer_t* P)
-{
-	const void* result = NULL;
-	if(ENSURE_PACKER(P) && ENSURE_PACK_MODE(P)) {
-		result = P->buffer;
-	}
-	return result;
-}
-
 bool unij_pack(unij_packer_t* P, const void* data, size_t size)
 {
 	bool status = true;
-	size_t szRemaining;
+	size_t remaining;
 	
-	if(!ENSURE_PACKER(P) || !ENSURE_PACK_MODE(P))
+	if(!ENSURE_PACK_MODE(P))
 		return false;
 	
 	// Empty data is silently ignored.
 	if(data == NULL || size == 0) 
 		return true;
 	
-	szRemaining = unij_packer_bytes_remaining(P);
-	if(size > szRemaining) {
+	remaining = unij_packer_bytes_remaining(P);
+	if(size > remaining) {
 		status = false;
 		unij_fatal_error(
 			UNIJ_ERROR_OPERATION,
 			L"Attempted to pack %zu bytes with only %zu bytes of space left in the packer's buffer. "
 			L"Verify that all data packing calls has a matching reserve.",
-			size, szRemaining
+			size, remaining
 		);
 	} else {
-		void* pDest = P->position;
-		RtlCopyMemory(pDest, (const void*)data, size);
-		P->position = (void*)(TOSZ(P->position) + size);
+		void* dest = P->position;
+		RtlCopyMemory(dest, data, size);
+		P->position = (void*)(TOPTR(P->position) + size);
 	}
 	
 	return status;
 }
 
-bool unij_pack_wstr(unij_packer_t* P, unij_wstr_t data)
+bool unij_pack_wstr(unij_packer_t* P, const unij_wstr_t* data)
 {
-	return unij_pack_val(P, data.length) &&
-	       unij_pack(P, (const void*)data.value, data.length * sizeof(wchar_t));
+	uint16_t default_length = 0;
+	if(data == NULL) return unij_pack_val(P, default_length);
+	return unij_pack_val(P, data->length) && data->length > 0 ?
+	       unij_pack(P, (const void*)data->value, data->length * sizeof(wchar_t)) : true;
 }
 
 unij_unpacker_t* unij_unpacker_create(const void* buffer)
@@ -284,9 +275,9 @@ unij_unpacker_t* unij_unpacker_create(const void* buffer)
 	// Allocate unpacker struct
 	U = (unij_unpacker_t*)unij_alloc(sizeof(*U));
 	if(U != NULL) {
-		U->buffer = (const void*)buffer;
+		U->buffer = buffer;
 		U->size = *((size_t*)buffer);
-		U->position = (void*)(TOSZ(buffer) + sizeof(size_t));
+		U->position = (void*)(TOPTR(buffer) + sizeof(size_t));
 	} else {
 		unij_fatal_alloc();
 	}
@@ -326,7 +317,7 @@ bool unij_unpacker_seek(unij_unpacker_t* U, int64_t offset)
 			result = szOffset <= szBoundOffset;
 			
 			// Subtract the offset from our position
-			if(result) U->position = (void*)(TOSZ(U->position) - szOffset);
+			if(result) U->position = (void*)(TOPTR(U->position) - szOffset);
 			
 		} else {
 			// Compare offset against the remaining bytes in our buffer
@@ -336,7 +327,7 @@ bool unij_unpacker_seek(unij_unpacker_t* U, int64_t offset)
 			result = szOffset <= szBoundOffset;
 			
 			// Add the offset to our position
-			if(result) U->position = (void*)(TOSZ(U->position) + szOffset);
+			if(result) U->position = (void*)(TOPTR(U->position) + szOffset);
 		}
 		
 		// On failure, throw an error.
@@ -378,35 +369,52 @@ bool unij_unpack(unij_unpacker_t* U, void* pDest, size_t size)
 		);
 	} else {
 		RtlCopyMemory(pDest, (const void*)U->position, size);
-		U->position = (void*)(TOSZ(U->position) + size);
+		U->position = (void*)(TOPTR(U->position) + size);
 	}
 	
 	return status;
 }
 
-bool unij_unpack_wstr(unij_unpacker_t* U, unij_wstr_t* pDest)
+bool unij_unpack_wstr(unij_unpacker_t* U, unij_wstr_t* dest)
 {
 	bool success = false;
 	
 	// Verify our destination
-	if(pDest == NULL) {
+	if(dest == NULL) {
 		unij_fatal_error(UNIJ_ERROR_ADDRESS, L"Fatal call made to unij_unpack_wstr: NULL destination");
 		return FALSE;
 	}
 	
 	// Zero out the destination. unpacker NULL checking done by unij_unpack.
-	RtlZeroMemory((void*)pDest, sizeof(*pDest));
-	if(unij_unpack_val(U, &pDest->length) && (pDest->length > 0)) {
-		size_t byteCount = WSIZE(pDest->length);
-		pDest->value = (const wchar_t*)unij_unpacker_peek(U);
-		success = unij_unpacker_seek(U, byteCount);
-		if(!success) {
-			unij_show_error_message(
-				L"Failed to seek to the end of a packed wstr. Verify that the data layout for your packer "
-				L"and unpacker match. (if so, please report this issue)"
-			);
+	RtlZeroMemory((void*)dest, sizeof(*dest));
+	if(unij_unpack_val(U, &dest->length)) {
+		if(dest->length > 0) {
+			size_t byte_count = WSIZE(dest->length);
+			dest->value = (const wchar_t*)unij_unpacker_peek(U);
+			success = unij_unpacker_seek(U, byte_count);
+			if(!success) {
+				unij_show_error_message(
+					L"Failed to seek to the end of a packed wstr. Verify that the data layout for your packer "
+					L"and unpacker match. (if so, please report this issue)"
+				);
+			}
+		} else {
+			success = true;
 		}
 	}
 	return success;
+}
+
+bool unij_unpack_wstrdup(unij_unpacker_t* U, unij_wstr_t* dest)
+{
+	bool result;
+	unij_wstr_t in_place = { 0, NULL };
+	result = unij_unpack_wstr(U, &in_place);
+	if(result) {
+		// Use unij_wcsndup instead of unij_wstrdup to ensure a trailing null character.
+		dest->length = in_place.length;
+		dest->value = unij_wcsndup(in_place.value, (size_t)dest->length);
+	}
+	return  result;
 }
 

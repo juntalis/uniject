@@ -1,10 +1,10 @@
 /**
- * @file libuniject.h
+ * @file uniject.h
  * 
  * TODO: Description
  */
-#ifndef _LIBUNIJECT_H_
-#define _LIBUNIJECT_H_
+#ifndef _UNIJECT_H_
+#define _UNIJECT_H_
 #pragma once
 
 #include "uniject/preconfig.h"
@@ -23,6 +23,7 @@ extern "C" {
 #include <errno.h>
 #include <memory.h>
 #include <limits.h>
+#include <wchar.h>
 
 #if defined(UNIJ_CC_MSVC) && (_MSC_VER < 1600)
 
@@ -64,6 +65,24 @@ typedef __int8 _Bool;
 #	define UNIJ_INLINE 
 #endif
 
+// For functions that should not be inlined
+#if defined(__attribute_noinline__)
+#	define UNIJ_NOINLINE __attribute_noinline__
+#elif defined(UNIJ_CC_MSVC)
+#	define UNIJ_NOINLINE __declspec(noinline)
+#elif (defined(UNIJ_CC_GNU) || defined(UNIJ_CC_CLANG))
+#	define UNIJ_NOINLINE __attribute__(( __noinline__ ))
+#else
+#	define UNIJ_NOINLINE 
+#endif
+
+// UNIJ_NORETURN
+#if defined(UNIJ_CC_MSVC)
+#	define UNIJ_NORETURN __declspec(noreturn) void
+#else
+#	define UNIJ_NORETURN __attribute__((noreturn)) void
+#endif
+
 /* Macro param helper */
 #define UNIJ_SINGLE(...) __VA_ARGS__
 
@@ -97,6 +116,13 @@ typedef __int8 _Bool;
 #define UNIJ_CACHE_ALIGN UNIJ_ALIGN(64)
 
 /**
+ * @def UNIJ_UNUSED(X)
+ * @brief Suppressed unused parameter warnings (hopefully)
+ */
+#define UNIJ_SUPPRESS_UNUSED(X) \
+	((void)(X))
+
+/**
  * @def UNIJ_DLLIMP
  * @brief DLL import macro.
  * TODO: figure out what to use in clang and mingw
@@ -110,10 +136,13 @@ typedef __int8 _Bool;
  */
 #define UNIJ_DLLEXP __declspec(dllexport)
 
+typedef struct unij_wstr unij_wstr_t;
+typedef struct unij_cstr unij_cstr_t;
+
 /**
  * @typedef unij_wstr_t
  * @brief Wide string holder
- * \a value should not be expected to contain a trailing zero. If \a length is 0, \a value should be NULL. Empty
+ * \a value may or may not contain a trailing zero. If \a length is 0, \a value should be NULL. Empty
  * strings should not be persisted.
  */
 struct unij_wstr
@@ -122,19 +151,36 @@ struct unij_wstr
 	const wchar_t* value;
 };
 
-typedef struct unij_wstr unij_wstr_t;
+#define UNIJ_EMPTY_WSTR ((unij_wstr_t){ 0, NULL })
+
+/**
+ * @typedef unij_cstr_t
+ * @brief String holder
+ * \a value may or may not contain a trailing zero. If \a length is 0, \a value should be NULL. Empty
+ * strings should not be persisted.
+ */
+struct unij_cstr
+{
+	uint16_t length;
+	const char* value;
+};
+
+#define UNIJ_EMPTY_CSTR ((unij_cstr_t){ 0, NULL })
+
+// Empty checker for unij_wstr_t's and unij_cstr_t's. `_` prefix as it will be wrapped in a macro that
+// will allow it to also support unij_cstr_t
+static UNIJ_INLINE bool _unij_is_empty(const unij_wstr_t* value)
+{
+	return (value == NULL) || (value->length == 0) || (value->value == NULL);
+}
+
+#define unij_is_empty(VALUE) \
+	(_unij_is_empty( (const unij_wstr_t*)(VALUE) ))
 
 #ifdef __cplusplus
 }
 #endif
 
-#ifndef UNIJECT_BUILD
-#	include "uniject/base.h"
-#	include "uniject/ipc.h"
-#	include "uniject/error.h"
-#	include "uniject/logger.h"
-#	include "uniject/params.h"
-#	include "uniject/process.h"
-#endif
+#include "uniject/crt.h"
 
-#endif /* _LIBUNIJECT_H_ */
+#endif /* _UNIJECT_H_ */

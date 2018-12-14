@@ -12,26 +12,26 @@
 extern "C" {
 #endif
 
+typedef struct unij_params unij_params_t;
+
 /**
  * @brief 
  */
 struct unij_params
 {
 	uint32_t pid;
+	uint32_t tid;
 	
 	// Flags
 	bool debugging : 1;
-	bool new_thread : 1;
 	
 	// Strings
-	unij_wstr_t mono_name;
-	unij_wstr_t assembly_name;
+	unij_wstr_t mono_path;
+	unij_wstr_t assembly_path;
 	unij_wstr_t class_name;
 	unij_wstr_t method_name;
 	unij_wstr_t log_path;
 };
-
-typedef struct unij_params unij_params_t;
 
 // Forward declaration
 typedef struct unij_packer unij_packer_t;

@@ -1,3 +1,10 @@
 /.idea
 /obj
 /bak
+/ref
+/**/.vs
+*.exe
+*.dll
+*.pdb
+*.obj
+*.bin

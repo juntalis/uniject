@@ -4,17 +4,10 @@
  */
 #include "pch.h"
 #include <uniject/utility.h>
-#include <uniject/error.h>
 #include <uniject/win32.h>
 
 #include <intrin.h>
 #pragma intrinsic(_InterlockedCompareExchangePointer)
-
-#define _SZ(PTR) \
-	((size_t)(PTR))
-
-#define _OFFSET(PTR,OFF) \
-	(_SZ(PTR) + _SZ(OFF))
 
 #ifdef _DEBUG
 #define UNIJ_HEAP_OPTS HEAP_GENERATE_EXCEPTIONS
@@ -22,18 +15,8 @@
 #define UNIJ_HEAP_OPTS 0
 #endif
 
-union generic_buffer
-{
-	uint8_t*  p8;
-	uint16_t* p16;
-	uint32_t* p32;
-	uint64_t* p64;
-};
-
-typedef union generic_buffer generic_buffer_t;
-
 // Heap used for this library's allocations
-static UNIJ_CACHE_ALIGN HANDLE uniject_heap_handle = NULL;
+static HANDLE uniject_heap_handle = NULL;
 
 // One-time execution data for unij_acquire_default_privileges
 static unij_once_t memory_initialized = UNIJ_ONCE_INIT;
@@ -41,14 +24,17 @@ static unij_once_t memory_initialized = UNIJ_ONCE_INIT;
 static UNIJ_NOINLINE
 BOOL CDECL unij_memory_init_once(void* pData)
 {
-	HANDLE hHeap =  HeapCreate(UNIJ_HEAP_OPTS, 0, UNIJ_HEAP_MAXSIZE);
-	if(IS_INVALID_HANDLE(hHeap)) {
-		unij_fatal_call(HeapCreate);
-		return FALSE;
+	HANDLE heap = GetProcessHeap();
+	if(IS_INVALID_HANDLE(heap)) {
+		heap = HeapCreate(UNIJ_HEAP_OPTS, 0, 0);
+		if(IS_INVALID_HANDLE(heap)) {
+			unij_fatal_call(HeapCreate);
+			return FALSE;
+		}
 	}
 	
 	// Set the global and return
-	uniject_heap_handle = hHeap;
+	uniject_heap_handle = heap;
 	return TRUE;
 }
 
@@ -59,33 +45,16 @@ bool unij_memory_init(void)
 
 void* unij_alloc(size_t size)
 {
-	bool has_heap = unij_memory_init();
-	return has_heap ? (void*)HeapAlloc(uniject_heap_handle, HEAP_ZERO_MEMORY, (SIZE_T)size) : NULL;
+	return unij_memory_init() ? (void*)HeapAlloc(uniject_heap_handle, HEAP_ZERO_MEMORY, (SIZE_T)size) : NULL;
 }
 
 void unij_free(void* ptr)
 {
-	bool has_heap;
 	BOOL free_result;
 	if(ptr == NULL) return;
-	has_heap = unij_memory_init();
-	if(!has_heap) return;
+	if(!unij_memory_init()) return;
 	free_result = HeapFree(uniject_heap_handle, 0, ptr); 
 	assert(free_result);
-}
-
-bool unij_memory_shutdown(void)
-{
-	bool result = true;
-	HANDLE hHeapPrevious = NULL;
-	HANDLE hHeapCurrent = *((volatile HANDLE*)&uniject_heap_handle);
-	// If the heap handle is NULL by the time we get to it... Don't worry about it? (assume another call was successful
-	// or it was never initialized)
-	hHeapPrevious = _InterlockedCompareExchangePointer(&uniject_heap_handle, NULL, hHeapCurrent);
-	if(hHeapPrevious != NULL) {
-		result = HeapDestroy(hHeapPrevious) ? true : false;
-	}
-	return result;
 }
 
 wchar_t* unij_wcsndup(const wchar_t* src, size_t count)
@@ -103,7 +72,7 @@ wchar_t* unij_wcsndup(const wchar_t* src, size_t count)
 
 	pResult = unij_wcsalloc(count + 1);
 	if(pResult == NULL) unij_fatal_alloc();
-	RtlCopyMemory((PVOID)pResult, (const PVOID)src, count * sizeof(wchar_t));
+	RtlCopyMemory((void*)pResult, (const void*)src, count * sizeof(wchar_t));
 	return pResult;
 }
 
@@ -116,6 +85,18 @@ wchar_t* unij_wcsdup(const wchar_t* src)
 	
 	length = (size_t)lstrlenW(src);
 	return unij_wcsndup(src, length);
+}
+
+unij_wstr_t unij_wstrdup(const unij_wstr_t* str)
+{
+	unij_wstr_t result = { 0, NULL };
+	size_t length = (size_t)unij_wstrlen(str);
+	if(length > 0) {
+		result.length = (uint16_t)length;
+		result.value = unij_wcsalloc(length);
+		RtlCopyMemory((void*)result.value, (const void*)str->value, WSIZE(length));
+	}
+	return result;
 }
 
 const wchar_t* unij_prefix_vsawprintf(const wchar_t* prefix, const wchar_t* format, va_list args)
@@ -159,23 +140,102 @@ const wchar_t* unij_prefix_sawprintf(const wchar_t* prefix, const wchar_t* forma
 	return pResult;
 }
 
-wchar_t* unij_simplify_path(wchar_t* dest, const wchar_t* src, size_t length)
+const char* unij_prefix_vsacprintf(const char* prefix, const char* format, va_list args)
 {
-	generic_buffer_t isrc, idest;
-	isrc.p8 = (uint8_t*)src;
-	idest.p8 = (uint8_t*)dest;
-	size_t pend, size = WSIZE(length);
-	pend = _OFFSET(src, --size);
+	size_t szPrefix = 0, szFormatted = 0;
+	char* pWorking = NULL, *pResult = NULL;
+	va_list argscopy;
 	
-	while(_SZ(isrc.p64) < pend)
-		*idest.p64++ = *isrc.p64++ | (uint64_t)0x0020002000200020;
+	// Check the resulting size of the buffer.
+	va_copy(argscopy, args);
+	szFormatted = (size_t)_vscprintf(format, argscopy) + 1;
+	va_end(argscopy);
 	
-	while(_SZ(isrc.p32) < pend)
-		*idest.p32++ = *isrc.p32++ | (uint32_t)0x00200020;
-	 
-	while(_SZ(isrc.p16) < pend)
-		*idest.p16++ = *isrc.p16++ | (uint16_t)0x0020;
+	// Add additional space for the prefix
+	if(prefix != NULL) {
+		szPrefix = (size_t)lstrlenA(prefix);
+	}
 	
-	dest[(size/2)+1] = L'\0';
-	return dest;
+	// Allocate our buffer.
+	pResult = (char*)unij_alloc(szFormatted + szPrefix);
+	if(pResult == NULL) {
+		return NULL;
+	}
+
+	// Finally, fill in the message.
+	if(IS_VALID_STRING(prefix))
+		lstrcpynA(pResult, prefix, (int)szPrefix + 1);
+	
+	pWorking = &(pResult[szPrefix]);
+	_vsnprintf(pWorking, szFormatted, format, args);
+	return (const char*)pResult;
 }
+
+const char* unij_prefix_sacprintf(const char* prefix, const char* format, ...)
+{
+	va_list args;
+	const char* pResult;
+	va_start(args, format);
+	pResult = unij_prefix_vsacprintf(prefix, format, args);
+	va_end(args);
+	return pResult;
+}
+
+unij_cstr_t unij_wstrtocstr(const unij_wstr_t* str)
+{
+	int bufsize;
+	unij_cstr_t result = { 0, NULL };
+	int length = (int)unij_wstrlen(str);
+	if(length == 0) return result;
+	
+	bufsize = WideCharToMultiByte(CP_UTF8, 0, str->value, length, NULL, 0, NULL, NULL);
+	if(!bufsize) {
+		unij_fatal_call(WideCharToMultiByte);
+		return result;
+	}
+	
+	result.length = (uint16_t)length;
+	result.value = (const char*)unij_alloc((size_t)bufsize + sizeof(char));
+	if(result.value == NULL) {
+		unij_fatal_alloc();
+		return result;
+	}
+	
+	if(!WideCharToMultiByte(CP_UTF8, 0, str->value, length, (char*)result.value, bufsize, NULL, NULL)) {
+		unij_cstrfree(&result);
+		unij_fatal_call(WideCharToMultiByte);
+	}
+	
+	return result;
+}
+
+#define TOPTR(PTR) \
+	((uintptr_t)(PTR))
+
+#define APPLY_OFFSET(PTR,OFF) \
+	(TOPTR(PTR) + TOPTR(OFF))
+
+wchar_t* unij_strtolower(wchar_t* buffer, size_t length)
+{
+	union
+	{
+		uint16_t* p16;
+		uint32_t* p32;
+		uint64_t* p64;
+	} idata;
+	idata.p16 = (uint16_t*)buffer;
+	uintptr_t pend = APPLY_OFFSET(buffer, WSIZE(length));
+	
+	while(TOPTR(idata.p64) + sizeof(uint64_t) <= pend)
+		*idata.p64++ |= (uint64_t)0x0020002000200020;
+	
+	
+	while(TOPTR(idata.p32) + sizeof(uint32_t) <= pend)
+		*idata.p32++ |= (uint32_t)0x00200020;
+	 
+	while(TOPTR(idata.p16) + sizeof(uint16_t) <= pend)
+		*idata.p16++ |= (uint16_t)0x0020;
+	
+	return buffer;
+}
+

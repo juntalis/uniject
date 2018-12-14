@@ -7,7 +7,6 @@
 #define _PCH_H_
 #pragma once
 
-#define UNIJ_BUILD 1
 #include <uniject.h>
 #include <time.h>
 #include <inttypes.h>

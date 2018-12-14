@@ -16,6 +16,7 @@ MONO_API(void, mono_debug_init, int format)
 
 MONO_API(MonoDomain*, mono_get_root_domain, void)
 MONO_API(MonoThread*, mono_thread_attach, MonoDomain*)
+MONO_API(MonoThread*, mono_thread_current, void)
 MONO_API(void, mono_thread_detach, MonoThread*)
 
 MONO_API(MonoAssembly*, mono_domain_assembly_open, MonoDomain*, const char*)

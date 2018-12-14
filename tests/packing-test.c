@@ -4,7 +4,8 @@
  */
 #include "pch.h"
 #include <uniject.h>
-#include <uniject/data.h>
+#include <uniject/base.h>
+#include <uniject/packing.h>
 #include <uniject/module.h>
 #include <uniject/process.h>
 #include <uniject/utility.h>
@@ -13,13 +14,13 @@
  * @brief Application-specific display of messages to user.
  * In order to give the application/DLL full control over the display of messages and critical failure process, we leave
  * this and ::UNIJ_AbortProcessImpl as undefined external symbols.
- * @param[in] uLevel Message urgency level
- * @param[in] pMessage The error message to show.
+ * @param[in] level Message urgency level
+ * @param[in] message The error message to show.
  */
-void unij_show_message_impl(unij_level_t uLevel, const wchar_t* pMessage)
+void unij_show_message_impl(unij_level_t level, const wchar_t* message)
 {
-	wchar_t* pScratch = (wchar_t*)pMessage;
-	wchar_t* pLevel = (wchar_t*)unij_level_name(uLevel);
+	wchar_t* pScratch = (wchar_t*)message;
+	wchar_t* pLevel = (wchar_t*)unij_level_name(level);
 	wprintf(L"[%s] %s\n", pLevel, pScratch);
 }
 
@@ -29,12 +30,12 @@ void unij_show_message_impl(unij_level_t uLevel, const wchar_t* pMessage)
  * this and ::UNIJ_ShowUserMessageImpl as undefined external symbols.
  * NOTE: In the case of the loader DLLs, this shouldn't actually terminate the process. Instead, it should abort the
  * loader logic, then cleanup and unload the loader DLL.
- * @param[in] dwError System error code 
+ * @param[in] last_error System error code 
  */
-void unij_abort_impl(DWORD dwError)
+void unij_abort_impl(uint32_t last_error)
 {
-	wprintf(L"Exiting process with code: 0x%08X", (unsigned int)dwError);
-	ExitProcess(dwError);
+	wprintf(L"Exiting process with code: 0x%08X", (unsigned int)last_error);
+	ExitProcess(last_error);
 }
 
 static VOID DumpBuffer(LPCWSTR pName, PBYTE pBuffer, SIZE_T szBuffer)
@@ -200,8 +201,8 @@ int wmain(int argc, wchar_t *argv[])
 	TRYPACKSTR(P,oPacking.ClassName);
 	TRYPACKSTR(P,oPacking.MethodName);
 	
-	pBuffer = (PBYTE)unij_packer_buffer(P);
-	szBuffer = (SIZE_T)unij_packer_size(P);
+	pBuffer = (PBYTE)unij_packer_get_buffer(P);
+	szBuffer = (SIZE_T)unij_packer_get_size(P);
 	DumpBuffer(L"packed.bin", (PBYTE)pBuffer, szBuffer);
 	
 	wprintf(L"Successfully packed data structure into %zu bytes! sizeof(struct) = %zu.\n\n\n", szBuffer, sizeof(oPacking));
@@ -232,11 +233,6 @@ int wmain(int argc, wchar_t *argv[])
 	
 	unij_unpacker_destroy(U);
 	unij_packer_destroy(P);
-	
-	sysdir = unij_system32_dir();
-	wprintf(L"Before: %s\n", sysdir.value);
-	unij_simplify_path(lcbuffer, sysdir.value, (size_t)sysdir.length);
-	wprintf(L"After: %s\n", lcbuffer);
 	
 	unij_shutdown();
 	return 0;

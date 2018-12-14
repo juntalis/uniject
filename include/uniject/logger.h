@@ -8,7 +8,6 @@
 #pragma once
 
 #include <uniject.h>
-#include "error.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -16,7 +15,7 @@ extern "C" {
 
 #define LogDebug(...)
 #define LogInfo(...)
-#define LogWarn(...)
+#define LogWarning(...)
 #define LogError(...)
 
 #ifdef __cplusplus

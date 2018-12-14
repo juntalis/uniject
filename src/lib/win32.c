@@ -5,9 +5,9 @@
 #include "pch.h"
 #include <uniject/win32.h>
 #include <uniject/utility.h>
-#include <uniject/error.h>
 
 #include <intrin.h>
+// TODO: Atomics compatibility macros
 #pragma intrinsic(_InterlockedCompareExchangePointer)
 
 // Privileges
@@ -18,7 +18,7 @@
 struct unij_once_internal
 {
 	UNIJ_CACHE_ALIGN
-	HANDLE event_handle;
+	HANDLE event;
 	BOOL executed;
 	BOOL result;
 };
@@ -47,7 +47,7 @@ BOOL CDECL unij_once_inner(unij_once_internal_t* pOnce, unij_once_fn fnOnce, voi
 		return FALSE;
 	}
 	
-	hExisting = _InterlockedCompareExchangePointer(&pOnce->event_handle, hCreated, NULL);
+	hExisting = _InterlockedCompareExchangePointer(&pOnce->event, hCreated, NULL);
 	if(IS_INVALID_HANDLE(hExisting)) {
 		pOnce->result = fnOnce(pData);
 		dwResult = SetEvent(hCreated) ? 1 : 0;
@@ -63,60 +63,64 @@ BOOL CDECL unij_once_inner(unij_once_internal_t* pOnce, unij_once_fn fnOnce, voi
 	return pOnce->result;
 }
 
-bool unij_once(unij_once_t* pOnce, unij_once_fn fnOnce, void* pData)
+bool unij_once(unij_once_t* once, unij_once_fn oncefn, void* parameter)
 {
 	BOOL bResult;
 	/* Fast case - avoid WaitForSingleObject. */
-	unij_once_internal_t* pOncePriv = (unij_once_internal_t*)pOnce;
-	bResult = pOncePriv->executed ? pOncePriv->result : unij_once_inner(pOncePriv, fnOnce, pData);
+	unij_once_internal_t* pOncePriv = (unij_once_internal_t*)once;
+	bResult = pOncePriv->executed ? pOncePriv->result : unij_once_inner(pOncePriv, oncefn, parameter);
 	return bResult ? true : false;
 }
 
 static UNIJ_INLINE
-PTOKEN_PRIVILEGES unij_alloc_token_privileges(const wchar_t** pNames, uint32_t uCount, LPDWORD lpdwBufferSize)
+PTOKEN_PRIVILEGES unij_alloc_token_privileges(const wchar_t** names, uint32_t count, uint32_t* pbuffer_size)
 {
-	PTOKEN_PRIVILEGES lpPrivileges = NULL;
-	*lpdwBufferSize = PRIVILEGES_OFFSET + LUID_SIZE(uCount);
+	PTOKEN_PRIVILEGES privileges = NULL;
+	*pbuffer_size = PRIVILEGES_OFFSET + LUID_SIZE(count);
 
-	lpPrivileges = (PTOKEN_PRIVILEGES)unij_alloc((size_t) *lpdwBufferSize);
-	if(lpPrivileges != NULL) {
+	privileges = (PTOKEN_PRIVILEGES)unij_alloc((size_t) *pbuffer_size);
+	if(privileges != NULL) {
 		uint32_t idx = 0;
-		lpPrivileges->PrivilegeCount = uCount;
-		for(; idx < uCount; idx++) {
-			if(!LookupPrivilegeValueW(NULL, pNames[idx], &lpPrivileges->Privileges[idx].Luid)) {
-				unij_free((void*)lpPrivileges);
-				lpPrivileges = NULL;
+		privileges->PrivilegeCount = count;
+		for(; idx < count; idx++) {
+			if(!LookupPrivilegeValueW(NULL, names[idx], &privileges->Privileges[idx].Luid)) {
+				unij_free((void*)privileges);
+				privileges = NULL;
 				break;
 			}
 
-			lpPrivileges->Privileges[idx].Attributes = SE_PRIVILEGE_ENABLED;
+			privileges->Privileges[idx].Attributes = SE_PRIVILEGE_ENABLED;
 		}
+	} else {
+		// Shouldnt actually hit this
+		unij_fatal_alloc();
+		SetLastError(ERROR_OUTOFMEMORY);
 	}
 
-	return lpPrivileges;
+	return privileges;
 }
 
-bool unij_acquire_privileges(HANDLE hProcess, const wchar_t** pNames, uint32_t uCount)
+bool unij_acquire_privileges(HANDLE process, const wchar_t** names, uint32_t count)
 {
 	HANDLE hToken = NULL;
 	BOOL bResult = FALSE;
 
-	if(OpenProcessToken(hProcess, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &hToken )) {
-		DWORD dwBufferSize = 0, dwLastError = ERROR_SUCCESS, i = 0;
-		PTOKEN_PRIVILEGES lpPrivileges = unij_alloc_token_privileges(pNames, uCount, &dwBufferSize);
+	if(OpenProcessToken(process, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &hToken )) {
+		uint32_t buffer_size = 0, last_error = ERROR_SUCCESS, i = 0;
+		PTOKEN_PRIVILEGES lpPrivileges = unij_alloc_token_privileges(names, count, &buffer_size);
 
 		// Mark the call as successful
 		if(lpPrivileges != NULL) {
-			bResult = AdjustTokenPrivileges(hToken, FALSE, lpPrivileges, dwBufferSize, NULL, NULL);
+			bResult = AdjustTokenPrivileges(hToken, FALSE, lpPrivileges, buffer_size, NULL, NULL);
 			if(bResult == FALSE)
-				dwLastError = GetLastError();
+				last_error = GetLastError();
 			unij_free((void*)lpPrivileges);
 		} else {
-			dwLastError = GetLastError();
+			last_error = GetLastError();
 		}
 		
 		CloseHandle(hToken);
-		SetLastError(dwLastError);
+		SetLastError(last_error);
 	}
 	
 	return bResult ? true : false;
@@ -127,7 +131,7 @@ BOOL CDECL unij_acquire_default_privileges_once(void* pData)
 {
 	static const wchar_t* pNames[] = UNIJ_SE_TOKENS;
 	static uint32_t uNamesCount = (uint32_t)ARRAYLEN(pNames);
-	return unij_acquire_privileges(GetCurrentProcess(), pNames, uNamesCount);
+	return unij_acquire_privileges(GetCurrentProcess(), pNames, uNamesCount) ? TRUE : FALSE;
 }
 
 bool unij_acquire_default_privileges(void) 
@@ -148,15 +152,14 @@ static UNIJ_INLINE const wchar_t* unij_object_type_text(unij_object_t type)
 	}
 }
 
+// TODO: pid is coming up as 0 in the loader dll call. Need to find out why
 const wchar_t* unij_object_name(const wchar_t* key, unij_object_t type, uint32_t pid)
 {
-	const wchar_t* result = NULL;
 	const wchar_t* stype = unij_object_type_text(type);
-	ASSERT_NOT_ZERO(pid);
+	//ASSERT_NOT_ZERO(pid);
 	ASSERT_VALID_STRING(key);
-	result = unij_sawprintf(UNIJ_OBJECT_FORMAT, key, stype, pid);
-	ASSERT_VALID_STRING(result);
-	return result;
+	return unij_sawprintf(UNIJ_OBJECT_FORMAT, key, stype);
+	//return unij_sawprintf(UNIJ_OBJECT_FORMAT, key, stype, pid);
 }
 
 HANDLE unij_create_mmap(const wchar_t* name, size_t size)
@@ -177,24 +180,24 @@ HANDLE unij_create_mmap(const wchar_t* name, size_t size)
 
 HANDLE unij_open_mmap(const wchar_t* name, bool readonly)
 {
-	HANDLE hResult = NULL;
-	DWORD dwAccess = readonly ? PAGE_READONLY : PAGE_READWRITE; 
+	HANDLE result = NULL;
+	DWORD access = readonly ? FILE_MAP_READ : FILE_MAP_ALL_ACCESS; 
 	ASSERT_VALID_STRING(name);
-	hResult = OpenFileMappingW(dwAccess, FALSE, name);
-	if(IS_INVALID_HANDLE(hResult)) {
-		unij_fatal_call(OpenFileMapping);
+	result = OpenFileMappingW(access, FALSE, name);
+	if(IS_INVALID_HANDLE(result)) {
+		unij_fatal_error(UNIJ_ERROR_LASTERROR, L"Failed call to OpenFileMapping(%lu, FALSE, \"%s\")", access, name);
 	}
-	return hResult;
+	return result;
 }
 
 HANDLE unij_create_event(const wchar_t* name)
 {
-	HANDLE hResult = NULL;
+	HANDLE result = NULL;
 	ASSERT_VALID_STRING(name);
-	hResult = CreateEventW(NULL, TRUE, FALSE, name);
+	result = CreateEventW(NULL, TRUE, FALSE, name);
 
-	if(IS_INVALID_HANDLE(hResult)) {
+	if(IS_INVALID_HANDLE(result)) {
 		unij_fatal_call(CreateEventW);
 	}
-	return hResult;
+	return result;
 }

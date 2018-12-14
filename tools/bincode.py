@@ -36,7 +36,8 @@ OUTPUT_EPILOGUE = """
 };
 """.strip() + '\n'
 
-OFFSET_TMPL = '#define %s_OFFSET_%d 0x%02X\n'
+SIZE_TMPL = '#define {0}_SIZE sizeof({0})\n'
+OFFSET_TMPL = '#define {}_OFFSET_{:d} 0x{:2X}\n'
 
 # Internally used
 RE_SPACES = re.compile(' {2,}')
@@ -47,7 +48,7 @@ def norm(text):
 	return text.upper().strip() if text else ''
 
 def xhex(byte):
-	return '0x%02X' % byte
+	return '0x{:2X}'.format(byte)
 
 def get_name(ea):
 	name = idc.Name(ea)
@@ -121,7 +122,7 @@ class insn_ex:
 		self.insn = idautils.DecodeInstruction(ea)
 		if self.insn is None or (has_limit and self.insn.size > limit):
 			self.bytes = (Byte(ea),)
-			self.disasm = 'db %Xh' % self.bytes[0]
+			self.disasm = 'db {:2X}h'.format(self.bytes[0])
 		else:
 			self.bytes = get_insn_bytes(self.insn)
 			self.disasm = get_insn_disasm(self.insn)
@@ -146,7 +147,7 @@ class insn_ex:
 	
 	@property
 	def c_comment(self):
-		return '//   %s' % self.disasm
+		return '//   {}'.format(self.disasm)
 	
 	@property
 	def c_bytes(self):
@@ -161,7 +162,7 @@ class insn_ex:
 	def c_line(self, just):
 		c_line = ''
 		name = get_name(self.ea)
-		if name: c_line += '\t'.ljust(just) + ('// %s:\n' % name)
+		if name: c_line += '\t'.ljust(just) + ('// {}:\n'.format(name))
 		return c_line + self.c_bytes.ljust(just) + self.c_comment + '\n'
 
 def segm_insn_exs(seg):
@@ -188,7 +189,7 @@ def main():
 	Message('Prompting user for C identifier...\n> ')
 	idc.SetStatus(idc.IDA_STATUS_WAITING)
 	ident = AskStr('CODE_', 'Please enter the C identifier you\'d like used..')
-	Message('%s\n' % ident)
+	Message(ident + '\n')
 	
 	writer = StringIO()
 	writer.write(OUTPUT_PROLOGUE % ident)
@@ -205,14 +206,14 @@ def main():
 			placeholder = insn.placeholder
 			if placeholder is not None:
 				placeholders.append(placeholder)
-				Message('\nLocated a placeholder at offset: %02Xh' % placeholder)
+				Message('\nLocated a placeholder at offset: {:2X}h'.format(placeholder))
 	
 	writer.write(OUTPUT_EPILOGUE)
 	if len(placeholders) > 0:
 		writer.write('\n')
 		Message('\nAdding placeholder offset macros..')
 		for idx, offset in enumerate(placeholders):
-			line = OFFSET_TMPL % (ident, idx, offset)
+			line = OFFSET_TMPL.format(ident, idx, offset)
 			writer.write(line)
 	
 	text = writer.getvalue()

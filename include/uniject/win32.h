@@ -1,7 +1,7 @@
 /**
  * @file uniject/win32.h
  * 
- * Contains functionality the deals mostly with the Win32 API.
+ * Miscellaneous Win32 API helpers. Threading/synchronization, process tokens, & memory mapping. 
  */
 #ifndef _UNIJECT_WIN32_H_
 #define _UNIJECT_WIN32_H_
@@ -43,7 +43,7 @@ typedef struct unij_once unij_once_t;
  * @typedef PRUN_ONCE_FN
  * @param[in]
  */
-typedef BOOL(CDECL *unij_once_fn)(PVOID Parameter);
+typedef BOOL(CDECL *unij_once_fn)(void* parameter);
 
 /**
  * @def unij_once_init
@@ -52,24 +52,23 @@ typedef BOOL(CDECL *unij_once_fn)(PVOID Parameter);
 #define UNIJ_ONCE_INIT {0}
 
 /**
- * Essentially InitOnceExecuteOnce for pre-Vista Windows. Didn't quite get the
- * significance of the Context parameter, so I left it off for the time being.
- * @param[in,out] pOnce Pointer to the one-time initialiation structure.
- * @param[in] fnOnce Application-defined one-time callback.
- * @param[in,out] pData Application-defined data passed into the callback
+ * Essentially InitOnceExecuteOnce for pre-Vista Windows without the context it.
+ * @param[in,out] once Pointer to the one-time initialiation structure.
+ * @param[in] oncefn Application-defined one-time callback.
+ * @param[in,out] parameter Application-defined data passed into the callback
  * @return Success of the callback.
  */
-bool unij_once(unij_once_t* pOnce, unij_once_fn fnOnce, void* pData);
+bool unij_once(unij_once_t* once, unij_once_fn oncefn, void* parameter);
 
 /**
  * Adjust a process's token privileges, enabling all privileges named in the
  * pNames parameter.
- * @param[in] hProcess Process handle to target
- * @param[in] pNames An array of privilege names
+ * @param[in] process Process handle to target
+ * @param[in] names An array of privilege names
  * @param[in] dwCount Number of privileges specified
  * @return Success status
  */
-bool unij_acquire_privileges(HANDLE hProcess, const wchar_t** pNames, uint32_t uCount);
+bool unij_acquire_privileges(HANDLE process, const wchar_t** names, uint32_t count);
 
 /**
  * Adjust current process's token privileges, enabling a preset list.

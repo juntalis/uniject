@@ -42,11 +42,17 @@
  */
 #define UNIJ_PARAMS_KEY "params"
 
+/**
+ * @def UNIJ_LOADER_BASENAME "uniject-loader"
+ * @brief Helps to identify the loader dll path. 
+ * When calculating the loader dll path, we do: EXE_FOLDER \ UNIJ_LOADER_BASENAME - (32|64).dll
+ */
+#define UNIJ_LOADER_BASENAME "uniject-loader"
 
 /**
- * @brief Max size to assign when creating the heap used for all the library's allocations (minuse the ipc)
- * Defaults to 0, so that it can grow as necessary.
+ * UNIJ_LOADER_READONLY true
+ * @brief Determines whether an unij_ipc_ctx created with a reader role is given read-only access to the shared memory.
  */
-#define UNIJ_HEAP_MAXSIZE (0)
+#define UNIJ_LOADER_READONLY true
 
 #endif /* _UNIJECT_BUILD_CONFIG_H_ */

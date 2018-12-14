@@ -2,6 +2,8 @@
  * @file uniject/ipc.h
  * @author Charles Grunwald <ch@rles.rocks>
  * @brief Interprocess communication layer
+ * 
+ * TODO: Possibly have the reader wait on an event that signals the writer's completion.
  */
 #ifndef _UNIJECT_IPC_H_
 #define _UNIJECT_IPC_H_
@@ -14,22 +16,12 @@ extern "C" {
 #endif
 
 /**
- * @brief 
- */
-enum unij_role
-{
-	UNIJ_ROLE_INJECTOR = 0,
-	UNIJ_ROLE_LOADER
-};
-
-typedef enum unij_role unij_role_t;
-
-/**
- * @brief IPC context declaration
+ * @brief IPC context forward declaration
  */
 typedef struct unij_ipc unij_ipc_t;
 
-// Forward declaration
+// Forward declarations
+typedef struct uniject uniject_t;
 typedef struct unij_packer unij_packer_t;
 typedef struct unij_unpacker unij_unpacker_t;
 
@@ -37,72 +29,57 @@ typedef void (CDECL *unij_reserve_fn)(unij_packer_t* P, const void* data);
 typedef bool (CDECL *unij_pack_fn)(unij_packer_t* P, const void* data);
 typedef bool (CDECL *unij_unpack_fn)(unij_unpacker_t* U, void* dest);
 
-// IPC context with injector role
-unij_ipc_t* unij_ipc_injector_create(uint32_t pid, const wchar_t* key);
+// Standard IPC open
+bool unij_ipc_open(uniject_t* ctx);
 
-// IPC context with loader role
-unij_ipc_t* unij_ipc_loader_create(const wchar_t* key);
-
-/**
- * @brief Injector only: Wait on the loader to complete.
- * TODO: timeout?
- * @param[in] ctx IPC context 
- * @return 
- */
-bool unij_ipc_injector_wait(unij_ipc_t* ctx);
+// Custom IPC openers
+unij_ipc_t* unij_ipc_writer_open(uint32_t pid, const wchar_t* key);
+unij_ipc_t* unij_ipc_reader_open(const wchar_t* key);
 
 /**
- * @brief Injector only: Wait on the loader to complete.
- * TODO: timeout?
- * @param[in] ctx IPC context 
- * @return 
- */
-bool unij_ipc_loader_notify(unij_ipc_t* ctx);
-
-/**
- * @brief Destroy either context. DO NOT CALL before calling unij_ipc_injector_wait
+ * @brief Destroy IPC context. (works for both standard and custom variations) 
  * @param ctx 
  */
-void unij_ipc_destroy(unij_ipc_t* ctx);
+void unij_ipc_close(unij_ipc_t* ipc);
 
 /* For overriding default params struct */
 
 /**
- * @brief Injector only: override the default data reserve handler
- * @param ctx 
+ * @brief Writer only: override the default data reserve handler
+ * @param ipc 
  * @param fn 
  */
-void unij_ipc_set_reserve_fn(unij_ipc_t* ctx, unij_reserve_fn fn);
+void unij_ipc_set_reserve_fn(unij_ipc_t* ipc, unij_reserve_fn fn);
 
 /**
- * @brief Injector only: override the default data packing handler
- * @param ctx 
+ * @brief Writer only: override the default data packing handler
+ * @param ipc 
  * @param fn 
  */
-void unij_ipc_set_pack_fn(unij_ipc_t* ctx, unij_pack_fn fn);
+void unij_ipc_set_pack_fn(unij_ipc_t* ipc, unij_pack_fn fn);
 
 /**
- * @brief Loader only: override the default data unpacking handler
- * @param ctx 
+ * @brief Reader only: override the default data unpacking handler
+ * @param ipc 
  * @param fn 
  */
-void unij_ipc_set_unpack_fn(unij_ipc_t* ctx, unij_unpack_fn fn);
+void unij_ipc_set_unpack_fn(unij_ipc_t* ipc, unij_unpack_fn fn);
 
 /**
- * @brief Injector only: will use the set reverse/pack functions or fallback to those declared in params.h
- * @param ctx 
+ * @brief Writer only: will use the set reverse/pack functions or fallback to those declared in params.h
+ * @param ipc 
  * @param data 
  * @return 
  */
-bool unij_ipc_pack(unij_ipc_t* ctx, const void* data);
+bool unij_ipc_pack(unij_ipc_t* ipc, const void* data);
 
 /**
- * @brief Loader only: will use the set unpack function or fallback to the one declared in params.h
- * @param ctx 
+ * @brief Reader only: will use the set unpack function or fallback to the one declared in params.h
+ * @param ipc 
  * @param data 
  * @return 
  */
-bool unij_ipc_unpack(unij_ipc_t* ctx, void* dest);
+bool unij_ipc_unpack(unij_ipc_t* ipc, void* dest);
 
 #ifdef __cplusplus
 };

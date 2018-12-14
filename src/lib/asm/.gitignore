@@ -4,3 +4,16 @@
 *.dll
 *.bin
 *.obj
+*.exp
+*.lib
+*.bak
+*.idb
+*.i64
+*.id0
+*.id1
+*.nam
+*.til
+*.pdb
+*.def
+sbox
+*.masm.asm

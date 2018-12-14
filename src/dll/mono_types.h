@@ -13,8 +13,6 @@
 extern "C" {
 #endif
 
-
-
 /*
  * When embedding, you have to define MONO_ZERO_LEN_ARRAY before including any
  * other Mono header file if you use a different compiler from the one used to
@@ -90,34 +88,7 @@ typedef struct MonoReflectionMethod MonoReflectionMethod;
 typedef struct MonoAppDomain MonoAppDomain;
 typedef struct MonoCustomAttrInfo MonoCustomAttrInfo;
 
-typedef char gchar;
-typedef short gshort;
-typedef int gint;
-typedef long glong;
-
-typedef unsigned char guchar;
-typedef unsigned short gushort;
-typedef unsigned int guint;
-typedef unsigned long gulong;
-
-typedef void* gpointer;
-typedef const void* gconstpointer;
-
-typedef int8_t gint8;
-typedef int16_t gint16;
-typedef int32_t gint32;
-typedef int64_t gint64;
-
-typedef uint8_t guint8;
-typedef uint16_t guint16;
-typedef uint32_t guint32;
-typedef uint64_t guint64;
-
-typedef float gfloat;
-typedef double gdouble;
-
 typedef int32_t gboolean;
-
 typedef uint16_t mono_unichar2;
 typedef uint32_t mono_unichar;
 

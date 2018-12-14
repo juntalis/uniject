@@ -13,18 +13,11 @@
 extern "C" {
 #endif
 
-typedef void(*mono_api_error_fn)(uint32_t code, const char* message);
+bool mono_api_init(const unij_wstr_t* mono_path);
+void mono_enable_debugging(void);
 
 #define MONO_API(RET, NAME, ...) \
-typedef RET ( *imp_ ## NAME )( __VA_ARGS__ );
-#include "mono_api.inl"
-
-bool mono_api_init(const wchar_t* filepath);
-void mono_api_set_error_handler(mono_api_error_fn handler);
-void mono_api_report_error(uint32_t code, const char* message);
-
-#define MONO_API(RET, NAME, ...) \
-extern imp_ ## NAME NAME;
+RET ( * NAME )( __VA_ARGS__ );
 #include "mono_api.inl"
 
 #ifdef __cplusplus

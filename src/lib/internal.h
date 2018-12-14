@@ -3,27 +3,16 @@
  * 
  * TODO: Description
  */
-#ifndef _UNIJ_INTERNAL_H_
-#define _UNIJ_INTERNAL_H_
+#ifndef _INTERNAL_H_
+#define _INTERNAL_H_
 #pragma once
 
-#if (!defined(_LIBUNIJECT_H_) || !defined(UNIJ_BUILD))
-#	error internal.h should only be included by pch.h during a build of the library.
+#ifndef _UNIJECT_H_
+#	include <uniject.h>
 #endif
 
 #ifndef _UNIJECT_BUILD_CONFIG_H_
 #	include "build_config.h"
-#endif
-
-// For functions that should not be inlined
-#if defined(__attribute_noinline__)
-#	define UNIJ_NOINLINE __attribute_noinline__
-#elif defined(UNIJ_CC_MSVC)
-#	define UNIJ_NOINLINE __declspec(noinline)
-#elif (defined(UNIJ_CC_GNU) || defined(UNIJ_CC_CLANG))
-#	define UNIJ_NOINLINE __attribute__(( __noinline__ ))
-#else
-#	define UNIJ_NOINLINE 
 #endif
 
 //	Fix params mismatch between swprintf and sprintf
@@ -116,45 +105,70 @@
 
 // Resulting format string for object names based on the values of 
 // UNIJ_OBJECT_SCOPE and UNIJ_OBJECT_PREFIX.
+// TODO: pid is coming up as 0 in the loader dll call. Need to find out why
 #define UNIJ_OBJECT_FORMAT \
-	UNIJ_WIDEN(UNIJ_OBJECT_SCOPE) L"\\" UNIJ_WIDEN(UNIJ_OBJECT_PREFIX) L".%s:%s@%08X"
+	UNIJ_WIDEN(UNIJ_OBJECT_SCOPE) L"\\" UNIJ_WIDEN(UNIJ_OBJECT_PREFIX) L".%s:%s"
+//	UNIJ_WIDEN(UNIJ_OBJECT_SCOPE) L"\\" UNIJ_WIDEN(UNIJ_OBJECT_PREFIX) L".%s:%s@%08X"
 
 // Wide stringify the params key
 #define UNIJ_PARAMS_KEYW \
 	UNIJ_WIDEN(UNIJ_PARAMS_KEY)
 
-/* Format Strings */
+// Wide stringify the loader basename
+#define UNIJ_LOADER_BASENAMEW \
+	UNIJ_WIDEN(UNIJ_LOADER_BASENAME)
 
-#define UNIJ_FORMAT_U8  L"%" UNIJ_WIDEN(PRIu8)
-#define UNIJ_FORMAT_U16 L"%" UNIJ_WIDEN(PRIu16)
-#define UNIJ_FORMAT_U32 L"%" UNIJ_WIDEN(PRIu32)
-#define UNIJ_FORMAT_U64 L"%" UNIJ_WIDEN(PRIu64)
+// Wide stringify the loader basename
+#define UNIJ_LOADER32_NAME \
+	UNIJ_LOADER_BASENAMEW L"-32.dll"
 
-// Replacements for C runtime functions.
-#ifdef UNIJ_CC_MSVC
+// Wide stringify the loader basename
+#define UNIJ_LOADER64_NAME \
+	UNIJ_LOADER_BASENAMEW L"-64.dll"
+
+#define MAKE_PTR(TYPE,BASE,OFFSET) \
+	( (TYPE*)(AS_UPTR(BASE) + AS_UPTR(OFFSET)) )
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#	undef RtlFillMemory
-#	undef RtlZeroMemory
-#	undef RtlMoveMemory
-#	undef RtlCopyMemory
-#	undef RtlEqualMemory
-#	undef RtlCompareMemory
-typedef ULONG LOGICAL;
-UNIJ_DLLIMP void WINAPI RtlFillMemory(PVOID, SIZE_T, BYTE);
-UNIJ_DLLIMP void WINAPI RtlZeroMemory(PVOID, SIZE_T);
-UNIJ_DLLIMP void WINAPI RtlMoveMemory(PVOID, const VOID*, SIZE_T);
-UNIJ_DLLIMP void WINAPI RtlCopyMemory(PVOID, const VOID*, SIZE_T);
-UNIJ_DLLIMP LOGICAL WINAPI RtlEqualMemory(const VOID*, const VOID*, SIZE_T);
-UNIJ_DLLIMP SIZE_T WINAPI RtlCompareMemory(const VOID*, const VOID*, SIZE_T);
+/**
+ * @brief Internally used helper for normalizing the process of getting a wstring's length without doing checks.
+ * @param[in] str Pointer to test 
+ * @return `true` if NULL or empty. `false` otherwise.
+ */
+static UNIJ_INLINE uint16_t unij_wstrlen(const unij_wstr_t* str)
+{
+	uint16_t length = 0;
+	if(str != NULL && IS_VALID_STRING(str->value)) {
+		length = str->length == 0 ? (uint16_t)lstrlenW(str->value) : str->length;
+	}
+	return length;
+}
+
+/**
+ * @brief Interally-used for normalizing a \a unij_wstr_t struct after already verifying a non-NULL pointer.
+ * @param[in,out] str Pointer to the \a unij_wstr_t we're operating on. 
+ * @return `false` if empty. `true` otherwise. \a str is altered with the correct length if length came in as 0.
+ */
+static UNIJ_INLINE bool unij_wstring(unij_wstr_t* str)
+{
+	if(str == NULL) {
+		return false;
+	} else {
+		str->length = unij_wstrlen(str);
+	}
+	return str->length > 0;
+}
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#include "error_private.h"
 
-#endif /* _UNIJ_INTERNAL_H_ */
+#define SHOW_INFO(...) \
+	unij_show_message(UNIJ_LEVEL_INFO, __VA_ARGS__ )
+
+#endif /* _INTERNAL_H_ */

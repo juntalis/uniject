@@ -1,5 +1,5 @@
 /**
- * @file uniject/data.h
+ * @file uniject/packing.h
  * @author Charles Grunwald <ch@rles.rocks>
  * @brief Data serialization/deserialization
  * 
@@ -15,8 +15,8 @@
  * in unpacking strings/bytes point directly to the string in the buffer, so the calling code should immediately copy
  * the data into its own storage. Unpacked strings will not contain a trailing zero, s
  */
-#ifndef _UNIJECT_DATA_H_
-#define _UNIJECT_DATA_H_
+#ifndef _UNIJECT_PACKING_H_
+#define _UNIJECT_PACKING_H_
 #pragma once
 
 #include <uniject.h>
@@ -24,6 +24,15 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define unij_reserve_type(P,TYPE) \
+	(unij_reserve(P, sizeof(TYPE)))
+
+#define unij_pack_val(P,VALUE) \
+	(unij_pack(P, (const void*)&(VALUE), sizeof(VALUE)))
+
+#define unij_unpack_val(U,DEST) \
+	( unij_unpack( U, (DEST), sizeof(*(DEST)) ) )
 
 // TODO: Make the buffer mechanic a bit more consistent across the two different context types
 
@@ -71,6 +80,7 @@ typedef struct unij_memprocs unij_memprocs_t;
 
 /**
  * @brief 
+ * @param[in] procs
  * @return 
  */
 unij_packer_t* unij_packer_create(unij_memprocs_t* procs);
@@ -92,7 +102,14 @@ void unij_packer_destroy(unij_packer_t* P);
  * @param P 
  * @return 
  */
-size_t unij_packer_size(unij_packer_t* P);
+size_t unij_packer_get_size(unij_packer_t* P);
+
+/**
+ * @brief 
+ * @param P 
+ * @return 
+ */
+const void* unij_packer_get_buffer(unij_packer_t* P);
 
 // "Reservation" mode functions
 
@@ -108,25 +125,16 @@ void unij_reserve(unij_packer_t* P, size_t size);
  * @param P 
  * @param data 
  */
-void unij_reserve_wstr(unij_packer_t* P, unij_wstr_t data);
+void unij_reserve_wstr(unij_packer_t* P, const unij_wstr_t* data);
 
 /**
  * @brief 
  * @param P 
- * @param allocfn 
- * @param ctx 
  * @return 
  */
 bool unij_packer_commit(unij_packer_t* P);
 
 // "Packing Mode" functions
-
-/**
- * @brief 
- * @param P 
- * @return 
- */
-const void* unij_packer_buffer(unij_packer_t* P);
 
 /**
  * @brief 
@@ -143,7 +151,7 @@ bool unij_pack(unij_packer_t* P, const void* data, size_t size);
  * @param data 
  * @return 
  */
-bool unij_pack_wstr(unij_packer_t* P, unij_wstr_t data);
+bool unij_pack_wstr(unij_packer_t* P, const unij_wstr_t* data);
 
 /**
  * @brief 
@@ -176,11 +184,11 @@ bool unij_unpacker_seek(unij_unpacker_t* U, int64_t offset);
 /**
  * @brief 
  * @param U 
- * @param pDest 
+ * @param dest 
  * @param size 
  * @return 
  */
-bool unij_unpack(unij_unpacker_t* U, void* pDest, size_t size);
+bool unij_unpack(unij_unpacker_t* U, void* dest, size_t size);
 
 /**
  * @brief 
@@ -188,19 +196,26 @@ bool unij_unpack(unij_unpacker_t* U, void* pDest, size_t size);
  * @param pDest 
  * @return 
  */
-bool unij_unpack_wstr(unij_unpacker_t* U, unij_wstr_t* pDest);
+bool unij_unpack_wstr(unij_unpacker_t* U, unij_wstr_t* dest);
 
-#define unij_reserve_type(P,TYPE) \
-	(unij_reserve(P, sizeof(TYPE)))
+/**
+ * @brief Same as \a unij_unpack_wstr, but allocates a copy of the string with a terminating null character.
+ * @param U 
+ * @param pDest 
+ * @return 
+ */
+bool unij_unpack_wstrdup(unij_unpacker_t* U, unij_wstr_t* dest);
 
-#define unij_pack_val(P,VALUE) \
-	(unij_pack(P, (const void*)&(VALUE), sizeof(VALUE)))
-
-#define unij_unpack_val(U,DEST) \
-	( unij_unpack( U, (DEST), sizeof(*(DEST)) ) )
+/**
+ * @brief 
+ * @param U 
+ * @param pDest 
+ * @return 
+ */
+bool unij_unpack_wstr(unij_unpacker_t* U, unij_wstr_t* dest);
 
 #ifdef __cplusplus
 };
 #endif
 
-#endif /* _UNIJECT_DATA_H_ */
+#endif /* _UNIJECT_PACKING_H_ */

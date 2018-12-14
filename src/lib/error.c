@@ -3,36 +3,36 @@
  * @author Charles Grunwald <ch@rles.rocks>
  */
 #include "pch.h"
-#include "uniject/error.h"
+#include "error_private.h"
 #include "uniject/logger.h"
 #include "uniject/utility.h"
 
-static UNIJ_INLINE const wchar_t* GetLastErrorDescription(uint32_t dwError)
+static UNIJ_INLINE const wchar_t* get_last_error_description(uint32_t last_error)
 {
-	const wchar_t* pMessage = NULL;
+	const wchar_t* message = NULL;
 	FormatMessageW(
 		FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM |FORMAT_MESSAGE_IGNORE_INSERTS,
-		NULL, dwError,
+		NULL, last_error,
 		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-		(wchar_t*)&pMessage, 0, NULL
+		(wchar_t*)&message, 0, NULL
 	);
-	return pMessage;
+	return message;
 }
 
-const wchar_t* unij_get_error_text(unij_error_t uCode)
+const wchar_t* unij_get_error_text(unij_error_t code)
 {
-	uint32_t dwError = GetLastError();
+	uint32_t last_error = GetLastError();
 	
-	switch(uCode)
+	switch(code)
 	{
 		case UNIJ_ERROR_PID:
-			return L"Invalid/non-existent PID specified";
+			return L"Invalid/non-existent PID or TID specified";
 		case UNIJ_ERROR_PROCESS:
 			return L"Target process is not supported (Likely not a Unity game)";
 		case UNIJ_ERROR_LOADERS:
 			return L"Could not locate the necessary loader DLL file";
-		case UNIJ_ERROR_UNPACK:
-			return L"An error occurred while attempting to unpack loader params";
+		case UNIJ_ERROR_PARAM:
+			return L"Invalid parameter specified";
 		case UNIJ_ERROR_MONO:
 			return L"Loaders couldn't locate the mono module";
 		case UNIJ_ERROR_ASSEMBLY:
@@ -47,82 +47,111 @@ const wchar_t* unij_get_error_text(unij_error_t uCode)
 		case UNIJ_ERROR_ADDRESS:
 		case UNIJ_ERROR_OUTOFMEMORY:
 		case UNIJ_ERROR_PATHNAME:
-			dwError = (uint32_t)uCode;
+			last_error = (uint32_t)code;
 		case UNIJ_ERROR_LASTERROR:
-			return GetLastErrorDescription(dwError);
+			return get_last_error_description(last_error);
 	}
 	
 	return L"Unknown Error";
 }
 
-void unij_free_error_text(unij_error_t uCode, const wchar_t* pMessage)
+void unij_free_error_text(unij_error_t code, const wchar_t* message)
 {
-	switch(uCode)
+	switch(code)
 	{
 		case UNIJ_ERROR_SUCCESS:
 		case UNIJ_ERROR_ADDRESS:
 		case UNIJ_ERROR_OUTOFMEMORY:
 		case UNIJ_ERROR_PATHNAME:
 		case UNIJ_ERROR_LASTERROR:
-			LocalFree((HLOCAL)pMessage);
+			LocalFree((HLOCAL)message);
 			break;
 		default:
 			break;
 	}
 }
 
- UNIJ_INLINE void vshow_message(unij_level_t uLevel, const wchar_t* pFormat, va_list vArgs)
+static UNIJ_INLINE void vshow_message(unij_level_t level, const wchar_t* format, va_list args)
 {
-	const wchar_t* pMessage = unij_vsawprintf(pFormat, vArgs);
-	unij_show_message_impl(uLevel, pMessage);
-	if(uLevel >= UNIJ_LEVEL_ERROR) {
-		LogError(pMessage);
+	const wchar_t* message = unij_vsawprintf(format, args);
+	unij_show_message_impl(level, message);
+	if(level >= UNIJ_LEVEL_ERROR) {
+		LogError(message);
 	}
-	unij_free((void*)pMessage);
+	unij_free((void*)message);
 }
 
-void unij_show_message(unij_level_t uLevel, const wchar_t* pFormat, ...)
+void unij_show_message(unij_level_t level, const wchar_t* format, ...)
 {
-	va_list vArgs;
-	va_start(vArgs, pFormat);
-	vshow_message(uLevel, pFormat, vArgs);
-	va_end(vArgs);
+	va_list vargs;
+	va_start(vargs, format);
+	vshow_message(level, format, vargs);
+	va_end(vargs);
 }
 
-void unij_fatal_error(unij_error_t uCode, const wchar_t* pFormat, ...)
+void unij_fatal_error(unij_error_t code, const wchar_t* format, ...)
 {
-	va_list vArgs;
-	const wchar_t* pDesc = NULL;
+	va_list vargs;
+	const wchar_t* desc = NULL;
 	
 	// Store last error for potential future use.
-	uint32_t dwError = GetLastError();
-	pDesc = unij_get_error_text(uCode);
+	uint32_t last_error = GetLastError();
+	desc = unij_get_error_text(code);
 	
-	// Determine what to do with pFormat
-	if(IS_INVALID_STRING(pFormat)) {
-		unij_show_message_impl(UNIJ_LEVEL_FATAL, pDesc);
+	// Determine what to do with format
+	if(IS_INVALID_STRING(format)) {
+		unij_show_message_impl(UNIJ_LEVEL_FATAL, desc);
 	} else {
 		// Build new format string
-		const wchar_t* pNewFormat = unij_sawprintf(L"%s [%s]", pFormat, pDesc);
-		ASSERT_VALID_STRING(pNewFormat);
+		const wchar_t* new_format = unij_sawprintf(L"%s - %s", desc, format);
+		ASSERT_VALID_STRING(new_format);
 		
 		// Apply new format string.
-		va_start(vArgs, pFormat);
-		vshow_message(UNIJ_LEVEL_FATAL, pNewFormat, vArgs);
-		va_end(vArgs);
+		va_start(vargs, format);
+		vshow_message(UNIJ_LEVEL_FATAL, new_format, vargs);
+		va_end(vargs);
 		
 		// Cleanup
-		unij_free((void*)pNewFormat);
+		unij_free((void*)new_format);
 	}
 	
 	// Cleanup error description
-	unij_free_error_text(uCode, pDesc);
+	unij_free_error_text(code, desc);
 	
 	// Restore LastError
-	SetLastError(dwError);
+	SetLastError(last_error);
 	
 	// Trigger the abort handler.
-	unij_abort(uCode);
+	unij_abort(code);
 }
 
+// Stupid fucking windows headers
+#ifdef ERROR
+#	undef ERROR
+#endif
+
+#define DEFINE_STATIC_WSTR(NAME,TEXT) \
+	static wchar_t UNIJ_PASTE(NAME,_text) [] = TEXT ; \
+	static unij_wstr_t NAME = { STRINGLEN(TEXT), UNIJ_PASTE(NAME,_text) }
+
+#define LEVEL_CASE(LEVEL) \
+	case UNIJ_PASTE(UNIJ_LEVEL_,LEVEL): { \
+		DEFINE_STATIC_WSTR( LEVEL##_LABEL , UNIJ_WSTRINGIFY(LEVEL) ); \
+		return &(LEVEL##_LABEL); \
+	}
+
+const unij_wstr_t* unij_level_name(unij_level_t level)
+{
+	switch(level)
+	{
+		LEVEL_CASE(INFO);
+		LEVEL_CASE(WARNING);
+		LEVEL_CASE(ERROR);
+		LEVEL_CASE(FATAL);
+		default: {
+			DEFINE_STATIC_WSTR(unknown_label, L"UNKNOWN");
+			return &unknown_label;
+		}
+	}
+}
 

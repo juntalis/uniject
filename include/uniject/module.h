@@ -16,20 +16,20 @@ extern "C" {
 /**
  * Retrieves the handle for the named module (in the current process) without
  * incrementing the module's reference count.
- * @param[in] pModuleName Module name
- * @param[in] dwFlags Any additional flags
+ * @param[in] module Module name
+ * @param[in] flags Any additional flags
  * @return Module handle or NULL if the module was not found.
  */
-HMODULE unij_noref_module_ex(const wchar_t* pModuleName, uint32_t dwFlags);
+HMODULE unij_noref_module_ex(const wchar_t* module, uint32_t flags);
 
 /**
  * ::unij_noref_module_ex without the flags param.
- * @param[in] pModuleName Module name
+ * @param[in] module Module name
  * @return Module handle or NULL if the module was not found.
  */
-static UNIJ_INLINE HMODULE unij_noref_module(const wchar_t* pModuleName)
+static UNIJ_INLINE HMODULE unij_noref_module(const wchar_t* module)
 {
-	return unij_noref_module_ex(pModuleName, 0);
+	return unij_noref_module_ex(module, 0);
 }
 
 /**

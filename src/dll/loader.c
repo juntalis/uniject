@@ -8,7 +8,6 @@
 #include "error.h"
 #include "mono_api.h"
 
-#include <uniject/params.h>
 #include <uniject/injector.h>
 
 typedef struct hijack_data hijack_data_t;
@@ -251,6 +250,10 @@ unij_error_t loader_main(void)
 	params = unij_get_params(ctx);
 	if(params == NULL) {
 		unij_fatal_error(UNIJ_ERROR_INTERNAL, L"Params = NULL!");
+		return UNIJ_ERROR_INTERNAL;
+	} else if(unij_is_empty(&params->assembly_path)) {
+		unij_fatal_error(UNIJ_ERROR_INTERNAL, L"params->assembly_path == NULL!");
+		unij_close(ctx);
 		return UNIJ_ERROR_INTERNAL;
 	}
 	

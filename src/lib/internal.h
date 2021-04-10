@@ -168,7 +168,7 @@ static UNIJ_INLINE bool unij_wstring(unij_wstr_t* str)
 
 #include "error_private.h"
 
-#define SHOW_INFO(...) \
+#define UNIJ_SHOW_INFO(...) \
 	unij_show_message(UNIJ_LEVEL_INFO, __VA_ARGS__ )
 
 #endif /* _INTERNAL_H_ */

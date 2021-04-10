@@ -206,14 +206,6 @@ bool unij_unpack_wstr(unij_unpacker_t* U, unij_wstr_t* dest);
  */
 bool unij_unpack_wstrdup(unij_unpacker_t* U, unij_wstr_t* dest);
 
-/**
- * @brief 
- * @param U 
- * @param pDest 
- * @return 
- */
-bool unij_unpack_wstr(unij_unpacker_t* U, unij_wstr_t* dest);
-
 #ifdef __cplusplus
 };
 #endif

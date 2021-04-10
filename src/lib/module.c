@@ -63,7 +63,7 @@ uint32_t unij_get_proc_rva(const wchar_t* module, const char* proc)
 	
 	module_handle = LoadLibraryExW(module, NULL, LOAD_LIBRARY_AS_IMAGE_RESOURCE);
 	if(module_handle == NULL) {
-		unij_fatal_call(LoadLibraryEx);
+		// unij_fatal_call(LoadLibraryEx);
 		return 0;
 	}
 	

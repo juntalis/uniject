@@ -9,6 +9,8 @@
 
 #include "mono_api.h"
 
+void (*mono_unity_set_vprintf_func)(vprintf_func) = NULL;
+
 #define MONO_API(RET, NAME, ...) \
 RET ( * NAME )( __VA_ARGS__ ) = NULL;
 #include "mono_api.inl"
@@ -28,6 +30,15 @@ BOOL CDECL mono_api_init_once(const unij_wstr_t* mono_path)
 		return FALSE;
 	}
 	
+	*((FARPROC*)&mono_unity_set_vprintf_func) = GetProcAddress(mono_module, "mono_unity_set_vprintf_func" );
+	if(mono_unity_set_vprintf_func == NULL) {
+		*((FARPROC*)&mono_unity_set_vprintf_func) = GetProcAddress(mono_module, "set_vprintf_func" );
+	}
+	if(mono_unity_set_vprintf_func == NULL) {
+		unij_fatal_error(UNIJ_ERROR_METHOD, L"Failed to locate required proc: mono.mono_unity_set_vprintf_func");
+		return FALSE;
+	}
+	
 #	define MONO_API(RET, NAME, ...) \
 	UNIJ_MESSAGE("Creating import code for mono." #NAME ": " #RET "(*)(" UNIJ_STRINGIFY(__VA_ARGS__)")" ); \
 	*((FARPROC*)&NAME) = GetProcAddress(mono_module, #NAME ); \
@@ -35,6 +46,7 @@ BOOL CDECL mono_api_init_once(const unij_wstr_t* mono_path)
 		unij_fatal_error(UNIJ_ERROR_METHOD, L"Failed to locate required proc: mono.%s", UNIJ_WSTRINGIFY(NAME)); \
 		return FALSE; \
 	}
+	
 #	include "mono_api.inl"
 	return TRUE;
 }

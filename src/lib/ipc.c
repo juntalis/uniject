@@ -143,7 +143,7 @@ static UNIJ_NOINLINE void* CDECL ipc_packer_alloc_handler(unij_ipc_t* ipc, size_
 		return NULL;
 	}
 	
-	SHOW_INFO(L"ipc_packer_alloc_handler hit: size=%zu", size);
+	UNIJ_SHOW_INFO(L"ipc_packer_alloc_handler hit: size=%zu", size);
 	return ipc_ensure_mmap(ipc, size);
 }
 
@@ -308,6 +308,7 @@ bool unij_ipc_unpack(unij_ipc_t* ipc, void* dest)
 	// Open file handle and map view of file.
 	buffer = ipc_ensure_mmap(ipc, 0);
 	if(buffer == NULL) {
+		unij_fatal_error(UNIJ_ERROR_INTERNAL, L"Failed to open file mapping!");
 		return false;
 	}
 	

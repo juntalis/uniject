@@ -216,7 +216,8 @@ bool unij_packer_commit(unij_packer_t* P)
 		P->position = buffer;
 		P->buffer = (const void*)buffer;
 		P->mode = PACKER_MODE_PACK;
-		status = unij_pack(P, (const void*)&(P->size), sizeof(size_t));
+		uint64_t llsize = (uint64_t)P->size;
+		status = unij_pack(P, (const void*)&llsize, sizeof(uint64_t));
 	}
 	return status;
 }
@@ -276,8 +277,8 @@ unij_unpacker_t* unij_unpacker_create(const void* buffer)
 	U = (unij_unpacker_t*)unij_alloc(sizeof(*U));
 	if(U != NULL) {
 		U->buffer = buffer;
-		U->size = *((size_t*)buffer);
-		U->position = (void*)(TOPTR(buffer) + sizeof(size_t));
+		U->size = (size_t)*((uint64_t*)buffer);
+		U->position = (void*)(TOPTR(buffer) + sizeof(uint64_t));
 	} else {
 		unij_fatal_alloc();
 	}

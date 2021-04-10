@@ -152,7 +152,7 @@ static unij_process_t* process_assign_internal(HANDLE process)
 	uint32_t pid;
 	unij_procflags_t flags;
 	unij_process_t* result = NULL;
-	//unij_wstr_t mono_path = { 0, NULL };
+	unij_wstr_t mono_path = { 0, NULL };
 	
 	// Grab the process id. (More for the purpose of verifying that this is a real accessible process handle)
 	pid = GetProcessId(process);
@@ -169,10 +169,10 @@ static unij_process_t* process_assign_internal(HANDLE process)
 	}
 	
 	// Auto-resolve the filepath for the process's mono dll.
-	//if(!resolve_mono_name(&mono_path, pid)) {
-	//	unij_fatal_error(UNIJ_ERROR_PROCESS, L"No mono dll detected in process passed to unij_process_assign");
-	//	return result;
-	//}
+	if(!resolve_mono_name(&mono_path, pid)) {
+		unij_fatal_error(UNIJ_ERROR_PROCESS, L"No mono dll detected in process passed to unij_process_assign");
+		return result;
+	}
 	
 	// Finally: allocate our result
 	result = (unij_process_t*)unij_alloc(sizeof(*result));

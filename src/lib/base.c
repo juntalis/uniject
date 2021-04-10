@@ -5,6 +5,7 @@
 #include "pch.h"
 #include "base_private.h"
 #include "process_private.h"
+#include "error_private.h"
 #include <uniject/injector.h>
 #include <uniject/utility.h>
 
@@ -200,7 +201,7 @@ static void ctx_free_params(uniject_t* ctx)
 	unij_wstrfree(&params->mono_path);
 	if(injector != NULL) {
 		unij_wstrfree(&injector->loader);
-		RtlZeroMemory((void*)&params->mono_path, sizeof(params->mono_path));
+		RtlZeroMemory((void*)params, sizeof(unij_params_t));
 	}
 }
 

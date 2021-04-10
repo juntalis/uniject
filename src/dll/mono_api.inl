@@ -6,7 +6,6 @@
 #error MONO_API must be defined prior to including mono_api.inl!
 #endif
 
-MONO_API(void, mono_unity_set_vprintf_func, vprintf_func)
 MONO_API(void, mono_trace_set_level_string, const char*level)
 MONO_API(void, mono_trace_set_mask_string, const char *mask)
 

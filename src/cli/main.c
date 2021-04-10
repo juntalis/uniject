@@ -58,6 +58,10 @@ static int cmd_inject(unij_cliargs_t* args)
 		wprintf(L"Injection completed successfully.\n");
 	}
 	unij_close(ctx);
+	
+	wprintf(L"Assembly Path: %s\n", args->params.assembly_path.value);
+	wprintf(L"Mono Path: %s\n", args->params.mono_path.value);
+	
 	return result;
 }
 

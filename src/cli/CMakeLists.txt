@@ -5,6 +5,9 @@ set(CLI_SOURCES
 	main.c
 	args.c
 	parg.c
+	args.h
+	parg.h
+	pch.h
 )
 
 include_directories(${CMAKE_CURRENT_LIST_DIR})

@@ -2,15 +2,20 @@
 set(LOADER_SOURCES
 	mono_api.c
 	loader.c
-	loader.h
 	main.c
 	error.c
-	error.h
 	pch.c
+	error.h
+	loader.h
+	mono_api.h
+	mono_api.inl
+	mono_types.h
+	pch.h
 )
 
 include_directories(${CMAKE_CURRENT_LIST_DIR})
 add_library(uniject-loader SHARED ${LOADER_SOURCES})
+set_source_files_properties(mono_api.inl PROPERTIES HEADER_FILE_ONLY ON)
 add_precompiled_header(uniject-loader pch.h
 	FORCEINCLUDE
 	SOURCE_C pch.c

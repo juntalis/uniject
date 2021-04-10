@@ -30,6 +30,7 @@ BOOL CDECL mono_api_init_once(const unij_wstr_t* mono_path)
 		return FALSE;
 	}
 	
+	// set_vprintf_func name changes across mono versions.
 	*((FARPROC*)&mono_unity_set_vprintf_func) = GetProcAddress(mono_module, "mono_unity_set_vprintf_func" );
 	if(mono_unity_set_vprintf_func == NULL) {
 		*((FARPROC*)&mono_unity_set_vprintf_func) = GetProcAddress(mono_module, "set_vprintf_func" );

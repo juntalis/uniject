@@ -76,6 +76,13 @@ static UNIJ_INLINE void show_message_msgbox_impl(unij_level_t level, const wchar
 	UINT flags = MB_APPLMODAL | MB_SETFOREGROUND | MB_TOPMOST;
 	switch(level)
 	{
+		case UNIJ_LEVEL_FATAL:
+			flags |= MB_ICONERROR;
+			break;
+#   ifdef _NDEBUG
+		default:
+			return;
+#   else
 		case UNIJ_LEVEL_INFO:
 			flags |= MB_ICONINFORMATION;
 			break;
@@ -83,12 +90,10 @@ static UNIJ_INLINE void show_message_msgbox_impl(unij_level_t level, const wchar
 		case UNIJ_LEVEL_WARNING:
 			flags |= MB_ICONEXCLAMATION;
 			break;
-		case UNIJ_LEVEL_FATAL:
-			flags |= MB_ICONERROR;
-			break;
 		default:
 			flags |= MB_ICONQUESTION;
 			break;
+#   endif
 	}
 	
 	loaded_msgbox.fn(NULL, message,  L"Uniject", flags);

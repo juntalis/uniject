@@ -46,11 +46,11 @@ static BOOL process_status(unij_error_t status)
 BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved)
 {
 	BOOL result = TRUE;
-	unij_show_message(UNIJ_LEVEL_INFO, L"Loader entry point hit!");
 	switch(reason)
 	{
 		case DLL_PROCESS_ATTACH:
 			DisableThreadLibraryCalls((HMODULE)instance);
+			unij_show_message(UNIJ_LEVEL_INFO, L"Loader entry point hit!");
 			if(loader_init(instance)) {
 				unij_error_t status = loader_main();
 				result = process_status(status);

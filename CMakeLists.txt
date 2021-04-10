@@ -9,7 +9,7 @@ set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/src/cmake")
 
 include(PrecompiledHeader)
 
-set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD 89)
 
 # Default build type to debug
 if(NOT CMAKE_BUILD_TYPE)
@@ -32,14 +32,19 @@ endif()
 include_directories(include)
 
 # Project-wide preprocessor definitions
-add_definitions("-DUNICODE=1")
-add_definitions("-D_UNICODE=1")
-add_definitions("-D_CRT_SECURE_NO_WARNINGS=1")
-add_definitions("-D_TIME_BITS=64")
-add_definitions("-D_FILE_OFFSET_BITS=64")
+add_compile_definitions(UNICODE=1)
+add_compile_definitions(_UNICODE=1)
+add_compile_definitions(_CRT_SECURE_NO_WARNINGS=1)
+add_compile_definitions(_TIME_BITS=64)
+add_compile_definitions(_FILE_OFFSET_BITS=64)
 
 set(UNIJECT_ROOT_DIR "${CMAKE_CURRENT_LIST_DIR}" CACHE INTERNAL "")
 set(UNIJECT_SOURCE_DIR "${UNIJECT_ROOTDIR}/src" CACHE INTERNAL "")
+
+set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -D_NDEBUG=1")
+set(CMAKE_C_FLAGS_MINSIZEREL "${CMAKE_C_FLAGS_MINSIZEREL} -D_NDEBUG=1")
+set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} -D_NDEBUG=1")
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 add_subdirectory(src)
 #add_subdirectory(tests)

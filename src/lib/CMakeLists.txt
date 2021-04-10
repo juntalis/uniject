@@ -1,6 +1,5 @@
 
 set(LIB_SOURCES
-	internal.h
 	base.c
 	packing.c
 	error.c
@@ -9,15 +8,19 @@ set(LIB_SOURCES
 	params.c
 	pch.c
 	process.c
-	peutil.h
 	utility.c
 	win32.c
 	injector.c
+	base_private.h
+	build_config.h
 	error_private.h
+	internal.h
+	pch.h
+	peutil.h
 	process_private.h
 )
 
-add_definitions("-DUNIJ_BUILD=1")
+add_compile_definitions(UNIJ_BUILD=1)
 include_directories(${CMAKE_CURRENT_LIST_DIR})
 
 add_library(uniject STATIC ${LIB_SOURCES})
